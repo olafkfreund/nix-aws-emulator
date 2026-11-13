@@ -51,7 +51,7 @@
         default = self.homeManagerModules.aws-emulator;
       };
 
-      formatter = forAllSystems (pkgs: pkgs.nixfmt);
+      formatter = forAllSystems (pkgs: pkgs.nixfmt-tree);
 
       checks = forAllSystems (
         pkgs:

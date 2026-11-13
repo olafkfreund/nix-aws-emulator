@@ -23,7 +23,6 @@ let
   isLoopback = lib.elem cfg.bindAddress [
     "127.0.0.1"
     "::1"
-    "localhost"
   ];
   probeHost =
     if cfg.bindAddress == "0.0.0.0" then
@@ -39,7 +38,7 @@ let
   portDir = "/run/aws-emulator/.aws/emulator/${toString cfg.port}";
   ready = pkgs.writeShellScript "aws-emulator-ready" ''
     for _ in $(${pkgs.coreutils}/bin/seq 1 30); do
-      code=$(${lib.getExe pkgs.curl} -sk -o /dev/null -w '%{http_code}' https://${probeHost}:${toString cfg.port}/__admin/health || true)
+      code=$(${lib.getExe pkgs.curl} -skg --connect-timeout 2 --max-time 3 -o /dev/null -w '%{http_code}' "https://${probeHost}:${toString cfg.port}/__admin/health" || true)
       if [ "$code" = 200 ] && [ -e ${portDir}/config ]; then
         ${pkgs.coreutils}/bin/chmod -R g+rX /run/aws-emulator/.aws
         exit 0
@@ -102,6 +101,12 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        assertion = cfg.bindAddress != "localhost";
+        message = "services.aws-emulator.bindAddress must be an IP address; the emulator rejects \"localhost\". Use \"127.0.0.1\".";
+      }
+    ];
     users.users.aws-emulator = {
       isSystemUser = true;
       group = cfg.group;
@@ -123,6 +128,7 @@ in
         ExecStart = "${lib.getExe cfg.package} ${lib.escapeShellArgs args}";
         ExecStartPost = "${ready}";
         Restart = "on-failure";
+        RestartSec = "5s";
         RuntimeDirectory = "aws-emulator";
         RuntimeDirectoryMode = "0750";
         UMask = "0027";

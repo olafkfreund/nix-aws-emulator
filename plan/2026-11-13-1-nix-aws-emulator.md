@@ -491,3 +491,21 @@ change to undo.
   `/home/bob/.aws/emulator/9298/config` is gone, not the directory.
 - Step 9: the lead fixed the AWS user guide link and replaced the
   hardening example, which only re-set the defaults.
+- Review fixes (Codex, Opus and agy reviews of the implementation):
+  - Step 4 changed design: the version now comes from the signature-verified
+    `.deb` control file, not the GitHub releases API. Upstream tags GitHub
+    releases several times a day (v1.0.343 at 13:22 on 2026-11-13) while
+    `LTS/latest` still served 1.0.342, so the tag-based check would fail
+    every run. This also detects a same-version republish (new bytes), drops
+    the API rate-limit dependency, refuses downgrades, requires both
+    architectures to agree, and checks the `Architecture:` field. Cost: the
+    daily run always downloads both `.deb` files (~350 MB).
+  - Step 8: `update.yml` runs the updater first, then skips the checks when
+    an open PR already targets that version; `persist-credentials: false` on
+    every checkout; arm jobs no longer claim `kvm`/`nixos-test` features.
+  - Steps 5-6: `localhost` rejected by assertion (the binary only accepts an
+    IP); probe `curl` quoted, `-g`, with timeouts; `RestartSec = "5s"`.
+  - Step 2: `formatter` is `nixfmt-tree`, so `nix fmt` without arguments
+    formats the repo (`nixfmt` alone waits on stdin).
+  - Step 9: README wording fixed (in-memory claim, shared-group warning,
+    `localhost`, update flow).

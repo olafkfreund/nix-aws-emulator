@@ -5,7 +5,7 @@
 
 ## What it is
 
-`nix-aws-emulator` packages [AWS Emulator](https://github.com/aws/aws-emulator) (`aws-emulator`) for Nix (`x86_64-linux` and `aarch64-linux`) and provides NixOS and Home Manager service modules. AWS Emulator is an upstream local emulator of AWS APIs (see the [AWS Emulator User Guide](https://docs.aws.amazon.com/emulator/latest/userguide/what-is-service.html)) intended for development and testing, not production. The package repackages the signed upstream `.deb` release, disables telemetry by default across all entry points, and keeps state in memory with per-run connection and TLS files generated at startup.
+`nix-aws-emulator` packages [AWS Emulator](https://github.com/aws/aws-emulator) (`aws-emulator`) for Nix (`x86_64-linux` and `aarch64-linux`) and provides NixOS and Home Manager service modules. AWS Emulator is an upstream local emulator of AWS APIs (see the [AWS Emulator User Guide](https://docs.aws.amazon.com/emulator/latest/userguide/what-is-service.html)) intended for development and testing, not production. The package repackages the signed upstream `.deb` release, disables telemetry by default across all entry points, and keeps emulated resources in memory only; per-run connection and TLS files are generated at startup.
 
 ## Quick try
 
@@ -233,11 +233,13 @@ Authentication (`services.aws-emulator.auth = true`, passing `-a on`) is enabled
 - System service (`services.aws-emulator` on NixOS): `/run/aws-emulator/.aws/emulator/<port>/` (`config`, `ca.pem`, `truststore.p12`, and `emulator_credentials` when `auth = true`).
 - User service (Home Manager or direct CLI run): `~/.aws/emulator/<port>/` (`config`, `ca.pem`, `truststore.p12`, and `emulator_credentials` when `auth = true`).
 
-Because keys and certificates are regenerated on every start and stored in memory (`/run/aws-emulator` on NixOS), nothing persists across service restarts.
+Keys and certificates are regenerated on every start. For the NixOS service they live in `/run/aws-emulator` (tmpfs), so nothing persists across restarts or reboots. For Home Manager or a direct CLI run they are written to `~/.aws/emulator/<port>/` on disk and removed on clean stop (an empty port directory remains).
+
+The `group` option makes its members able to read these files. Use a dedicated group: if you set it to a shared group such as `users`, every member of that group can read the emulator credentials.
 
 ## Network
 
-By default, `services.aws-emulator.bindAddress` is `"127.0.0.1"` and `services.aws-emulator.openFirewall` is `false`.
+`bindAddress` must be an IP address; the emulator rejects host names such as `localhost` (the modules fail evaluation with an assertion). By default, `services.aws-emulator.bindAddress` is `"127.0.0.1"` and `services.aws-emulator.openFirewall` is `false`.
 
 If you change `bindAddress` or `openFirewall`, the NixOS module emits evaluation warnings for unsafe or ineffective combinations:
 
@@ -245,7 +247,7 @@ If you change `bindAddress` or `openFirewall`, the NixOS module emits evaluation
   `AWS Emulator listens on <bindAddress>; anyone who can reach it and has the keys can use it`
 - Non-loopback `bindAddress` with `auth = false`:
   `AWS Emulator listens on <bindAddress> WITHOUT authentication; anyone who can reach the port can use it and exhaust memory`
-- `openFirewall = true` while `bindAddress` is loopback (`"127.0.0.1"`, `"::1"`, or `"localhost"`):
+- `openFirewall = true` while `bindAddress` is loopback (`"127.0.0.1"` or `"::1"`):
   `AWS Emulator openFirewall has no effect while bindAddress is loopback`
 
 Never add `ca.pem` to your system-wide trust store (`security.pki.certificateFiles`). Point only the AWS CLI or SDK at `/run/aws-emulator/.aws/emulator/<port>/config` (or `ca.pem` / `truststore.p12`) for emulator sessions.
@@ -271,9 +273,9 @@ If an emulated AWS service API requires loosening a systemd unit setting, overri
 
 `.github/workflows/update.yml` runs daily on a schedule (`17 6 * * *`) and via `workflow_dispatch`:
 
-1. It queries the latest upstream GitHub release tag from `aws/aws-emulator` and compares it with `pkgs/aws-emulator/sources.json`.
-2. If a newer version exists (and no open PR on `update/aws-emulator` already targets it), `scripts/update.sh` downloads the `amd64` and `arm64` `.deb` archives and `.deb.sig` detached signatures from `downloads.aws.com`.
-3. Each `.deb` is verified with `gpgv` against the pinned AWS key in `keys/aws-publishing.asc`, requiring a `VALIDSIG` status line whose primary-key fingerprint equals `98BCF336A3BE53B734E967C52E5BF49BD940F624`, and checking that the Debian control `Version:` matches the release tag.
+1. `scripts/update.sh` downloads the `amd64` and `arm64` `.deb` archives and their `.deb.sig` detached signatures from the `LTS/latest` URLs on `downloads.aws.com`.
+2. Each `.deb` is verified with `gpgv` against the pinned AWS key in `keys/aws-publishing.asc`, requiring a `VALIDSIG` status line whose primary-key fingerprint equals `98BCF336A3BE53B734E967C52E5BF49BD940F624`, and checking the Debian `Architecture:` field.
+3. The version comes from the verified packages' `Version:` field, not from GitHub: upstream tags GitHub releases several times a day, but the `LTS/latest` packages move less often. The workflow continues only when that version (or the bytes) differ from `pkgs/aws-emulator/sources.json`, both architectures agree, the version is not older than the pin, and no open PR on `update/aws-emulator` already targets it.
 4. `pkgs/aws-emulator/sources.json` records `version`, `signer`, and per-system `url`, `hash`, and `sigHash` as committed verification evidence.
 5. Before opening a pull request, the workflow runs `nix flake check -L` (format, smoke test, and NixOS VM test) on `x86_64-linux` and `.#checks.aarch64-linux.smoke` on `aarch64-linux`.
 
@@ -317,7 +319,7 @@ systemctl is-active aws-emulator.service
 id -nG
 ```
 
-- **Hash mismatch when building `aws-emulator`:** Upstream updated the file at the mutable `latest` URL after the commit you are building. Update your flake input to the latest `main` commit (or run `scripts/update.sh` locally if the daily update PR has not merged yet):
+- **Hash mismatch when building `aws-emulator`:** Upstream updated the file at the mutable `latest` URL after the commit you are building. (The updater also catches upstream republishing the same version with new bytes and opens a PR for it.) Update your flake input to the latest `main` commit (or run `scripts/update.sh` locally if the daily update PR has not merged yet):
 
 ```bash
 nix flake update aws-emulator

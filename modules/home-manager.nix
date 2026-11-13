@@ -65,6 +65,10 @@ in
   config = lib.mkIf cfg.enable {
     assertions = [
       {
+        assertion = cfg.bindAddress != "localhost";
+        message = "services.aws-emulator.bindAddress must be an IP address; the emulator rejects \"localhost\". Use \"127.0.0.1\".";
+      }
+      {
         assertion = pkgs.stdenv.hostPlatform.isLinux;
         message = "services.aws-emulator is only supported on Linux";
       }
@@ -76,6 +80,7 @@ in
         ExecStart = "${lib.getExe cfg.package} ${lib.escapeShellArgs args}";
         Environment = [ "EMULATOR_TELEMETRY=${if cfg.telemetry then "on" else "off"}" ];
         Restart = "on-failure";
+        RestartSec = "5s";
       };
       Install.WantedBy = [ "default.target" ];
     };
