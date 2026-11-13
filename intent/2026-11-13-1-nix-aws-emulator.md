@@ -47,8 +47,9 @@ Facts from the review (release v1.0.342, 2026-11-13):
   `overlays.default`, and `nixosModules.default`.
 - `nix run github:olafkfreund/nix-aws-emulator` starts the emulator, with
   the same telemetry choice as the module (see open question 1).
-- A pinned version stays buildable after upstream moves `latest`, for both
-  architectures, with evidence linking each file to its signature.
+- `main` always pins the current upstream release, kept fresh by CI, with
+  evidence linking each file to its signature. Whether older pins stay
+  buildable depends on open question 3.
 - `services.aws-emulator.enable = true;` runs it as a hardened systemd
   service with options for bind address, port, telemetry, auth, idle timeout,
   extra arguments and opening the firewall.
