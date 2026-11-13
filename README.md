@@ -269,6 +269,35 @@ If an emulated AWS service API requires loosening a systemd unit setting, overri
 }
 ```
 
+## Extra hardening (optional)
+
+The module's defaults leave out a system-call filter and a few `/proc` and IPC restrictions, because a filter that's too tight can break emulated services in ways one test can't rule out. The settings below were tested together in a NixOS VM against AWS Emulator 1.0.342: S3, SQS, DynamoDB, STS, and a Python Lambda created and invoked (which runs the embedded Python runtime) all worked. `systemd-analyze security aws-emulator.service` rates the result **1.3 (OK)**.
+
+```nix
+{
+  systemd.services.aws-emulator.serviceConfig = {
+    # Allow only the syscalls a normal service needs; refuse privileged and
+    # resource-control calls with EPERM instead of killing the process.
+    SystemCallFilter = [
+      "@system-service"
+      "~@privileged"
+      "~@resources"
+    ];
+    SystemCallErrorNumber = "EPERM";
+    # Hide other processes and non-process entries in /proc.
+    ProtectProc = "invisible";
+    ProcSubset = "pid";
+    # Private System V IPC namespace, removed when the service stops.
+    PrivateIPC = true;
+    RemoveIPC = true;
+    # Cap memory: emulated resources live in RAM (about 290 MB idle).
+    MemoryMax = "1G";
+  };
+}
+```
+
+If a service API you use fails with these settings, check `journalctl -u aws-emulator` for `Operation not permitted`, and drop `SystemCallFilter` first. Raise `MemoryMax` for large test data sets.
+
 ## Updates
 
 `.github/workflows/update.yml` runs weekly (Mondays 06:17 UTC, `17 6 * * 1`) and on demand via `workflow_dispatch`:
