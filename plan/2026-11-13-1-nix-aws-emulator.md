@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 issue: 1
 spec: spec/2026-11-13-1-nix-aws-emulator.md
 coders:
