@@ -13,8 +13,8 @@ emulator of the AWS APIs. Upstream supports Linux only through RPM and Debian
 packages (`downloads.aws.com/.../LTS/latest/aws-emulator_{amd64,arm64}.deb`,
 signed with a `.sig` next to each file) or a Docker image built from a short
 Dockerfile. There is no Nix package, no NixOS module and no nixpkgs entry, so a
-NixOS user can't install it declaratively, run it as a service or pin a
-version.
+NixOS user has no maintained way to install it declaratively, run it as a
+service or keep a pinned version buildable.
 
 Facts from the review (release v1.0.342, 2026-11-13):
 
@@ -31,13 +31,24 @@ Facts from the review (release v1.0.342, 2026-11-13):
   `--idle-timeout`. Health check `GET /__admin/health` over self-signed HTTPS.
   State is in memory; per-port files go in `~/.aws/emulator/<port>/`.
   Telemetry is on by default.
+- The bundled `THIRD_PARTY_LICENSES` lists about 1,500 crates. Most are
+  MIT/Apache/BSD, but 4 are `LGPL-3.0-only` and 4 have "no declared
+  license". The binary is statically linked Rust.
+- The arm64 `.deb` and the `.sig` files exist (HTTP 200); arm64 contents not
+  yet inspected.
+- Because the flake must pin a hash, the `latest` URL breaks every fresh
+  build of `main` as soon as upstream publishes a new release, until the pin
+  is updated.
 
 ## Proposed outcome
 
-- A public repo `olafkfreund/nix-aws-emulator` with a flake that exposes
+- A public repo `olafkfreund/nix-aws-emulator` (created, issue #1) with a flake that exposes
   `packages.<system>.aws-emulator` (x86_64-linux and aarch64-linux),
-  an overlay, and `nixosModules.default`.
-- `nix run github:olafkfreund/nix-aws-emulator` starts the emulator.
+  `overlays.default`, and `nixosModules.default`.
+- `nix run github:olafkfreund/nix-aws-emulator` starts the emulator, with
+  the same telemetry choice as the module (see open question 1).
+- A pinned version stays buildable after upstream moves `latest`, for both
+  architectures, with evidence linking each file to its signature.
 - `services.aws-emulator.enable = true;` runs it as a hardened systemd
   service with options for bind address, port, telemetry, auth, idle timeout,
   extra arguments and opening the firewall.
@@ -46,8 +57,8 @@ Facts from the review (release v1.0.342, 2026-11-13):
   troubleshooting.
 - GitHub workflows that check for a new upstream release on a schedule, update
   the pinned version and hashes, build the package, run a NixOS VM test that
-  starts the service and gets 200 from `/__admin/health`, and open a PR when
-  everything passes.
+  starts the service and gets 200 from `/__admin/health`, build and smoke-test
+  aarch64 on a native arm runner, and open a PR when everything passes.
 
 ## Affected users and systems
 
@@ -61,24 +72,38 @@ Facts from the review (release v1.0.342, 2026-11-13):
   time on CI). Must keep the upstream licence (CC0) and ship
   `THIRD_PARTY_LICENSES`.
 - Must verify the AWS GPG signature in the update workflow before taking a
-  new hash.
-- Must not enable telemetry silently: the module should expose it and the
-  README must say the upstream default is on.
+  new hash, against a key fingerprint pinned in the repo, failing closed. The
+  hashed (and any cached) bytes must be the same bytes that were verified.
+- Must not enable telemetry silently, on any entry point (`nix run`,
+  package, module).
 - Must not open the firewall or bind to non-loopback by default.
 - Linux only (upstream binaries are Linux only).
-- No secrets in the repo; workflows use only `GITHUB_TOKEN`.
+- No secrets in the repo. Note: a PR opened with `GITHUB_TOKEN` does not
+  trigger `pull_request` workflows, so the update workflow must test before
+  opening the PR (or a PAT/App token is needed).
+- Package metadata must declare `sourceProvenance = binaryNativeCode`.
 
 ## Open questions
 
-1. Telemetry default in the module: keep upstream `on`, or default to `off`?
-   (Proposal: `off`, documented.)
-2. Auth default: upstream `on` writes per-run keys to the service's home.
-   Keep `on`? (Proposal: keep `on`, document where the keys land.)
-3. Because only `latest` is downloadable, should the workflow also cache each
-   pinned `.deb` (for example as a GitHub release asset in this repo) so old
-   pins stay buildable? (Proposal: yes, attach the `.deb` files to a release
-   per version.)
-4. Is aarch64-linux in scope for the CI VM test, or only for the package
-   build? (Proposal: build-check the aarch64 hash only; VM test on x86_64.)
-5. Should the update workflow auto-merge a green PR, or wait for you?
-   (Proposal: open the PR and wait.)
+1. Telemetry: default `off` for both the module and `nix run` (wrapper passes
+   `-t off`), with an option to turn it on? (Proposal: yes.)
+2. Service model: a hardened system service cannot easily share its per-run
+   auth keys (written under its own home, regenerated each restart) with
+   normal users. Options: (a) system service with auth `off` on loopback by
+   default; (b) system service with a group-readable state dir; (c) a Home
+   Manager user service where keys land in the user's own
+   `~/.aws/emulator/<port>/`. (Proposal: ship the NixOS module with (b) and a
+   `users`/group option, plus a Home Manager module with (c).)
+3. Licence and redistribution: is it acceptable to re-host the `.deb` files
+   as GitHub release assets in this repo, given the LGPL-3.0-only and
+   undeclared-licence crates and unknown `downloads.aws.com` terms? If not,
+   old pins become unbuildable once `latest` moves. (Proposal: do not re-host
+   by default; fetch from `latest`, let the update workflow keep `main`
+   current, and document that only the current version is guaranteed.
+   Revisit after a licence check.)
+4. `meta.license`: mark as `cc0` plus `unfreeRedistributable`-free licences
+   as listed, or mark `unfree` to be safe? (Proposal: list `cc0`, `mit`,
+   `asl20`, `lgpl3Only` and others found; not `unfree`.)
+5. aarch64: native build plus binary health smoke test on `ubuntu-24.04-arm`,
+   VM test on x86_64 only? (Proposal: yes.)
+6. Auto-merge: open the PR and wait for you? (Proposal: wait.)
