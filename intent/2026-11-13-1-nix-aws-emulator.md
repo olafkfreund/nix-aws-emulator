@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 issue: 1
 author: olafkfreund
 ---
@@ -108,3 +108,11 @@ Facts from the review (release v1.0.342, 2026-11-13):
 5. aarch64: native build plus binary health smoke test on `ubuntu-24.04-arm`,
    VM test on x86_64 only? (Proposal: yes.)
 6. Auto-merge: open the PR and wait for you? (Proposal: wait.)
+
+## Decisions (approved 2026-11-13)
+
+The owner approved every proposal above: telemetry off by default everywhere;
+NixOS system service with a group-readable state dir plus a Home Manager user
+service; no re-hosting of `.deb` files, `main` tracks the latest release;
+`meta.license` lists the real licences, not `unfree`; native arm64 build and
+smoke test, VM test on x86_64; update PRs wait for owner review.
