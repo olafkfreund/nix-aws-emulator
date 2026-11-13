@@ -1,14 +1,14 @@
 {
-  "version": "1.0.342",
+  "version": "1.0.343",
   "signer": "98BCF336A3BE53B734E967C52E5BF49BD940F624",
   "x86_64-linux": {
     "url": "https://downloads.aws.com/aws-emulator/packages/aws-emulator/LTS/latest/aws-emulator_amd64.deb",
-    "hash": "sha256-nXI4yiUFwBDmwamrrWvF2OiMVr9jtz2gXdbA2DpNz/g=",
-    "sigHash": "sha256-UNzDc7vjJftLSoqX7deAlpbd8N+fvsoMYBmZ5yaDMoI="
+    "hash": "sha256-rszJU6Yq4b258V4ORiJgkQJWT/7sgjoBGqilfY/1LyE=",
+    "sigHash": "sha256-MXaSoJU9yxm4OBYAXgPEkKiWViBb/dkv7VBa1ru1TOA="
   },
   "aarch64-linux": {
     "url": "https://downloads.aws.com/aws-emulator/packages/aws-emulator/LTS/latest/aws-emulator_arm64.deb",
-    "hash": "sha256-TU1nMlgcfWvSWieOv58+2jy9PElCm9EsSQYDX8V5UEY=",
-    "sigHash": "sha256-D/YIzJAdazvW7jbT+jwYQGe8F6hIZLJ4hwvSxfPNl/4="
+    "hash": "sha256-e1WgYzKl1Pm3cU3Aauu/I734X1Wu4iOAdZ7+/mN7x44=",
+    "sigHash": "sha256-4aKlNg1ntOiK2y1aHOfE+D5dT98e3WxL/0bnD5UoxY8="
   }
 }
