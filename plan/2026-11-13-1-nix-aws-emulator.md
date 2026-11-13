@@ -509,3 +509,8 @@ change to undo.
     formats the repo (`nixfmt` alone waits on stdin).
   - Step 9: README wording fixed (in-memory claim, shared-group warning,
     `localhost`, update flow).
+- Owner decision after merge (2026-11-13): `update.yml` runs weekly
+  (`17 6 * * 1`) instead of daily, and merges its own PR once the x86_64
+  flake check and aarch64 smoke pass (replaces "update PRs wait for the
+  owner"). The owner accepted the longer hash-mismatch window between
+  weekly runs; no binary cache for now.
