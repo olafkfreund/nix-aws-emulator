@@ -271,15 +271,15 @@ If an emulated AWS service API requires loosening a systemd unit setting, overri
 
 ## Updates
 
-`.github/workflows/update.yml` runs daily on a schedule (`17 6 * * *`) and via `workflow_dispatch`:
+`.github/workflows/update.yml` runs weekly (Mondays 06:17 UTC, `17 6 * * 1`) and on demand via `workflow_dispatch`:
 
 1. `scripts/update.sh` downloads the `amd64` and `arm64` `.deb` archives and their `.deb.sig` detached signatures from the `LTS/latest` URLs on `downloads.aws.com`.
 2. Each `.deb` is verified with `gpgv` against the pinned AWS key in `keys/aws-publishing.asc`, requiring a `VALIDSIG` status line whose primary-key fingerprint equals `98BCF336A3BE53B734E967C52E5BF49BD940F624`, and checking the Debian `Architecture:` field.
 3. The version comes from the verified packages' `Version:` field, not from GitHub: upstream tags GitHub releases several times a day, but the `LTS/latest` packages move less often. The workflow continues only when that version (or the bytes) differ from `pkgs/aws-emulator/sources.json`, both architectures agree, the version is not older than the pin, and no open PR on `update/aws-emulator` already targets it.
 4. `pkgs/aws-emulator/sources.json` records `version`, `signer`, and per-system `url`, `hash`, and `sigHash` as committed verification evidence.
-5. Before opening a pull request, the workflow runs `nix flake check -L` (format, smoke test, and NixOS VM test) on `x86_64-linux` and `.#checks.aarch64-linux.smoke` on `aarch64-linux`.
+5. The workflow runs `nix flake check -L` (format, smoke test, and NixOS VM test) on `x86_64-linux` and `.#checks.aarch64-linux.smoke` on `aarch64-linux`. Only when both pass does it open a pull request and merge it into `main` straight away. A failing check leaves `main` untouched and the run red.
 
-**Mutable `latest` URL and hash-mismatch window:** Upstream only serves `.deb` packages at the mutable `.../LTS/latest/aws-emulator_{amd64,arm64}.deb` URLs (versioned paths return HTTP 403), and this repository does not re-host the binaries. When upstream publishes a new release at `latest`, fresh builds without the previous `.deb` already in `/nix/store` will fail with a fixed-output derivation hash mismatch until the automated update PR is reviewed and merged.
+**Mutable `latest` URL and hash-mismatch window:** Upstream only serves `.deb` packages at the mutable `.../LTS/latest/aws-emulator_{amd64,arm64}.deb` URLs (versioned paths return HTTP 403), and this repository does not re-host the binaries. When upstream publishes a new release at `latest`, fresh builds without the previous `.deb` already in `/nix/store` will fail with a fixed-output derivation hash mismatch until the next weekly update lands. Upstream moves `latest` often (twice on 2026-11-13), so expect this between weekly runs. To fix it sooner, run the workflow by hand: **Actions → Update → Run workflow**, or `gh workflow run update.yml -R olafkfreund/nix-aws-emulator`.
 
 **Why no required status checks are configured on `main`:** Update pull requests are opened using the repository's `GITHUB_TOKEN`, and GitHub Actions does not trigger `pull_request` workflows (`ci.yml`) on events created by `GITHUB_TOKEN`. Because `update.yml` already runs both the `x86_64-linux` flake check (including the VM test) and the `aarch64-linux` smoke check before creating the PR, `main` does not configure required status checks that would otherwise block merging update PRs.
 
@@ -319,7 +319,7 @@ systemctl is-active aws-emulator.service
 id -nG
 ```
 
-- **Hash mismatch when building `aws-emulator`:** Upstream updated the file at the mutable `latest` URL after the commit you are building. (The updater also catches upstream republishing the same version with new bytes and opens a PR for it.) Update your flake input to the latest `main` commit (or run `scripts/update.sh` locally if the daily update PR has not merged yet):
+- **Hash mismatch when building `aws-emulator`:** Upstream updated the file at the mutable `latest` URL after the commit you are building. (The updater also catches upstream republishing the same version with new bytes.) Update your flake input to the latest `main` commit (or trigger the update workflow by hand, or run `scripts/update.sh` locally):
 
 ```bash
 nix flake update aws-emulator
