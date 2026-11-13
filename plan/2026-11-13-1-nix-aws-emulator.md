@@ -479,3 +479,15 @@ All changes are in the new repo. Before merge: close the PR and delete the
 branch. After merge: `git revert` the merge commit, or archive the repo with
 `gh repo archive olafkfreund/nix-aws-emulator`. No host or `~/.config/nixos`
 change to undo.
+
+## Deviations recorded during implementation
+
+- Step 2: `pkgs.stdenv.hostPlatform.system` instead of the deprecated
+  `pkgs.system`.
+- Step 7: `node.pkgsReadOnly = false` in `runNixOSTest`, because the test
+  driver makes `nixpkgs.overlays` read-only and the overlay must apply.
+- Step 7: on clean stop the emulator deletes its files but leaves an empty
+  `0700` port directory, so the last assertion checks
+  `/home/bob/.aws/emulator/9298/config` is gone, not the directory.
+- Step 9: the lead fixed the AWS user guide link and replaced the
+  hardening example, which only re-set the defaults.
